@@ -1,0 +1,39 @@
+services:
+  # Base de données PostgreSQL
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: elyamaje
+      POSTGRES_USER: elyamaje
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Renseignez POSTGRES_PASSWORD dans le fichier .env}
+    volumes:
+      - donnees-postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U elyamaje -d elyamaje"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # Application Next.js (site + API de l'agent)
+  app:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://elyamaje:${POSTGRES_PASSWORD}@db:5432/elyamaje
+      # Sans clé valide, l'agent fonctionne en mode « sans IA » (réponses tirées de la FAQ).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      AGENT_MODE: ${AGENT_MODE:-auto}
+      CLAUDE_MODEL: ${CLAUDE_MODEL:-claude-opus-5-5}
+      CLAUDE_EFFORT: ${CLAUDE_EFFORT:-low}
+    volumes:
+      # La FAQ est lue depuis votre dossier : modifiez-la puis « docker compose restart app ».
+      - ./donnees:/app/donnees:ro
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+volumes:
+  donnees-postgres:
